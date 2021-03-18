@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 #V := 1
-PROJECT_NAME := deep_sleep
+PROJECT_NAME := killswitch
 
 EXTRA_COMPONENT_DIRS := $(CURDIR)/../esp-idf-lib/components
 
