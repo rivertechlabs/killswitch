@@ -83,14 +83,6 @@ static RTC_DATA_ATTR struct timeval sleep_enter_time;
 #define PIN_NUM_CLK  14
 #define PIN_NUM_CS   13
 
-/*
- * Offset (in 32-bit words) in RTC Slow memory where the data is placed
- * by the ULP coprocessor. It can be chosen to be any value greater or equal
- * to ULP program size, and less than the CONFIG_ESP32_ULP_COPROC_RESERVE_MEM/4 - 6,
- * where 6 is the number of words used by the ULP coprocessor.
- */
-#define ULP_DATA_OFFSET     36
-
 enum {
     DS3231_SET = 0,
     DS3231_CLEAR,
@@ -119,45 +111,11 @@ esp_err_t ds3231_set_flag(i2c_dev_t *dev, uint8_t addr, uint8_t bits, uint8_t mo
 void app_main(void)
 {
 
-// First configure the pin to pull up the SQW line on DS3231
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_NEGEDGE; // falling edge
-    //set as output mode
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    //bit mask of the pins that you want to set,e.g.GPIO2
-    io_conf.pin_bit_mask = (1ULL<<2);
-    //disable pull-down mode
-    io_conf.pull_down_en = 0;
-    //enable pull-up mode
-    io_conf.pull_up_en = 0;
-    //configure GPIO with the given settings
-    gpio_config(&io_conf);
-
-/*
-// First configure the pin to pull up the DS3231
-    //gpio_config_t io_conf;
-    //disable interrupt
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    //set as output mode
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    //bit mask of the pins that you want to set,e.g.GPIO27
-    io_conf.pin_bit_mask = (1ULL<<27);
-    //disable pull-down mode
-    io_conf.pull_down_en = 0;
-    //disable pull-up mode
-    io_conf.pull_up_en = 0;
-    //configure GPIO with the given settings
-    gpio_config(&io_conf);
-
-// Turn on the DS3231
-    gpio_set_level(27,1);
-    printf("Turn DS3231 on\n");
-*/
-
     vTaskDelay(2000 / portTICK_PERIOD_MS);
 
     ESP_ERROR_CHECK(i2cdev_init());
 
+    // Initiate I2C bus
     i2c_dev_t dev;
     memset(&dev, 0, sizeof(i2c_dev_t));
 
@@ -180,7 +138,7 @@ void app_main(void)
 
     printf("%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel\n", time.tm_year + 1900, time.tm_mon + 1, time.tm_mday, time.tm_hour, time.tm_min, time.tm_sec, temp);
 
-// Enable BBSQW
+// Enable BBSQW so that DS3231 is able to set off the alarm from the coin cell
     if (ds3231_set_flag(&dev, 0x0e, 0x40,DS3231_SET) != ESP_OK)
     {
         printf("Couldn't write BBSQW register.\n");
@@ -190,16 +148,7 @@ void app_main(void)
     gettimeofday(&now, NULL);
     int sleep_time_ms = (now.tv_sec - sleep_enter_time.tv_sec) * 1000 + (now.tv_usec - sleep_enter_time.tv_usec) / 1000;
 
-/*    if (ds3231_get_alarm_flags(&dev,&DS3231_ALARM_2) != ESP_OK)
-    {
-        printf("Could not get flags\n");
-    }
-*/
     switch (esp_sleep_get_wakeup_cause()) {
- //       case ESP_SLEEP_WAKEUP_EXT0: {
- //           printf("Wake up from GPIO\n");
- //           break;
- //       }
         case ESP_SLEEP_WAKEUP_TIMER: {
             printf("Wake up from timer. Time spent in deep sleep: %dms\n", sleep_time_ms);
             break;
@@ -208,9 +157,6 @@ void app_main(void)
         default:
             printf("Not a deep sleep reset\n");
     }
-
-    // Use settings defined above to initialize SD card and mount FAT filesystem.
-    // Note: esp_vfs_fat_sdmmc/sdspi_mount is all-in-one convenience functions.
 
     esp_err_t ret;
     // Options for mounting the filesystem.
@@ -305,29 +251,12 @@ void app_main(void)
     printf("Enabling timer wakeup, %ds\n", wakeup_time_sec);
     esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
 
-/*    const int ext_wakeup_pin_1 = 2;
-    //const uint64_t ext_wakeup_pin_1_mask = 1ULL << ext_wakeup_pin_1;
-
-    printf("Enabling EXT0 wakeup on pin GPIO%d\n", ext_wakeup_pin_1);
-    //esp_sleep_enable_ext0_wakeup(ext_wakeup_pin_1, 0);
-
-    if (esp_sleep_enable_ext0_wakeup(ext_wakeup_pin_1, 0) != ESP_OK)
-    {   
-        printf("Could not enable external wakeup\n");
-    }
-*/
-
 #if CONFIG_IDF_TARGET_ESP32
     // Isolate GPIO12 pin from external circuits. This is needed for modules
     // which have an external pull-up resistor on GPIO12 (such as ESP32-WROVER)
     // to minimize current consumption.
     rtc_gpio_isolate(GPIO_NUM_12);
 #endif
-
-/* Turn off DS3231
-    gpio_set_level(27,0);
-    printf("Turn DS3231 off.\n");
-*/
 
 vTaskDelay(1000 / portTICK_PERIOD_MS);
 
