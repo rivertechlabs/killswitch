@@ -13,4 +13,4 @@ Before you begin, you need the ESP-IDF installed on your computer. Please visit 
 
 You also need the [ESP-IDF Component Library by @UncleRus](https://github.com/UncleRus/esp-idf-lib) in order to run this program
 ## Hookup and Schematics
-(Coming soon)
+![](Images/killswitch.png)
